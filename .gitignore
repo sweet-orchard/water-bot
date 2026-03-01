@@ -1,0 +1,29 @@
+# Bytecode
+**/__pycache__/**
+*.pyc
+
+# Virtual Environments
+venv/
+.venv/
+
+# Environment Variables (SENSITIVE)
+.env
+.env.local
+
+# User Data & Databases (SENSITIVE)
+*.json
+*.pickle
+*.db
+*.sqlite
+aquabot.db
+aquabot_data.pickle
+hydration_bot_data.pickle
+hydration_data.json
+user_data.json
+
+# OS Files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
