@@ -1042,6 +1042,8 @@ ACHIEVEMENT_I18N: Dict[str, Dict[str, Dict[str, str]]] = {
 def db_connect() -> sqlite3.Connection:
     conn = sqlite3.connect(DB_FILE, check_same_thread=False)
     conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
     return conn
 
 
@@ -1599,14 +1601,8 @@ def check_log_ach(p: UserProfile, today: str, tz: pytz.BaseTzInfo) -> List[str]:
 _weather_cache: Dict[str, Tuple[int, float, str, datetime]] = {}
 
 
-def get_weather(city: str) -> Tuple[int, float, str]:
-    if not city:
-        return 0, 0.0, ""
-    cached = _weather_cache.get(city.lower())
-    if cached and (datetime.utcnow() - cached[3]).seconds < 1800:
-        return cached[0], cached[1], cached[2]
+def _fetch_weather(city: str):
     try:
-        # Add UK suffix for British cities to avoid US duplicates
         city_query = city
         if city.lower() in ["bristol", "london", "manchester", "birmingham", "leeds", "glasgow", "liverpool"]:
             city_query = city + ",UK"
@@ -1623,9 +1619,26 @@ def get_weather(city: str) -> Tuple[int, float, str]:
         elif temp >= 25: bonus = 200
         else:            bonus = 0
         _weather_cache[city.lower()] = (bonus, temp, desc, datetime.utcnow())
-        return bonus, temp, desc
     except Exception:
+        pass
+
+
+def get_weather(city: str) -> Tuple[int, float, str]:
+    if not city:
         return 0, 0.0, ""
+    cached = _weather_cache.get(city.lower())
+    now = datetime.utcnow()
+    if cached and (now - cached[3]).seconds < 1800:
+        return cached[0], cached[1], cached[2]
+    
+    import threading
+    # update cache timestamp immediately to prevent spawning duplicate threads
+    _weather_cache[city.lower()] = cached if cached else (0, 0.0, "", now)
+    threading.Thread(target=_fetch_weather, args=(city,), daemon=True).start()
+    
+    if cached:
+        return cached[0], cached[1], cached[2]
+    return 0, 0.0, ""
 
 
 # ─────────────────────────────────────────────────────────────────
